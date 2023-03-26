@@ -8,6 +8,7 @@ import argparse
 import ipaddress
 from pathlib import Path
 import struct
+import socket
 
 import ldap
 from ldap.ldapobject import LDAPObject
@@ -50,7 +51,7 @@ def connect_to_ldap(config, binddn: str, bindpw: str, verbose: bool = False) -> 
     if verbose:
         print('Connecting to LDAP...')
 
-    ldap_servers = config['memberfilter']['ldap_servers'].split(',')
+    ldap_servers = config['general']['ldap_servers'].split(',')
 
     for server in ldap_servers:
         conn = ldap.initialize(server)
@@ -66,32 +67,31 @@ def connect_to_ldap(config, binddn: str, bindpw: str, verbose: bool = False) -> 
             conn.unbind_s()
             if verbose:
                 print(f'Error contacting Server {server}: {connect_error}')
+
             continue
 
-    print(f'Failed to contact any ldap server out of {config["memberfilter"]["ldap_servers"]}')
+    print(f'Failed to contact any ldap server out of {config["general"]["ldap_servers"]}')
 
-    raise ldap.LDAPError(f'Error contacting Servers {config["memberfilter"]["ldap_servers"]}')
+    raise ldap.LDAPError(f'Error contacting Servers {config["general"]["ldap_servers"]}')
 
 
-def setup_redirects(config, proto: str = "ipv4", nft_set_name: str, binddn: str, bindpw: str, verbose: bool = False) -> int:
+def setup_redirects(config, binddn: str, bindpw: str, verbose: bool = False) -> int:
     error = 0
 
-    if verbose:
-        print(f'Updating {proto}:')
 
     ldap_conn = connect_to_ldap(config, binddn, bindpw, verbose)
 
     timestamp = ldap_conn.search_s(
         binddn,
         ldap.SCOPE_SUBTREE,
-        filterstr=f'(ou={proto})',
+        #filterstr=f'(ou=ipv4)',
         attrlist=['description']
     )[0][1]['description'][0]
 
-    ldap_cache_dir = Path(config['memberfilter']['ldap_cache_dir'])
+    ldap_cache_dir = Path(config['general']['ldap_cache_dir'])
     ldap_cache_dir.mkdir(exist_ok=True, parents=True)
 
-    ldap_cache_file = ldap_cache_dir / f'last_update_{proto}'
+    ldap_cache_file = ldap_cache_dir / f'last_update'
     ldap_cache_file.touch(exist_ok=True)
     try:
         timestamp_local = ldap_cache_file.read_text()
@@ -113,29 +113,31 @@ def setup_redirects(config, proto: str = "ipv4", nft_set_name: str, binddn: str,
             print(f'Error {e}: invalid ip-address in LDAP: {ip}')
             error = 1
             continue
-
-        if isinstance(net, ipaddress.IPv4Network) and int(net.netmask) < 17:
+        if int(net.netmask) < 17:
             # Netzmasken kleiner als 17 sind in der StuSta nicht gueltig
             print(f'Error: range too big: {ip}')
             error = 2
             continue
-        else:
+
+        if isinstance(net, ipaddress.IPv6Network):
             print(f"Error: We don't need to support IPv6. Why should we? {net=}")
+            continue
+
 
         for addr in net:
             member_list.append(str(addr))
 
     member_list = set(member_list)
-    dorms_list = filter((lambda x: x != "default"), config.sections())
+    dorms_list = list(filter((lambda x: x != "general"), config.sections()))
     # don't always recreate IPv4Network -> cache
     dorms_ipnet = {dorm: ipaddress.IPv4Network(config[dorm]["subnet"]) for dorm in dorms_list}
 
-    dorms_port_to_ip_map = {dorm: dict() for dict in dorms_list}
+    dorms_port_to_ip_map = {dorm: dict() for dorm in dorms_list}
 
     for address in member_list:
-        matching_dorms = [dorm for dorm,net in dorms_ipnet if address in net]
+        matching_dorms = [dorm for dorm,net in dorms_ipnet.items() if ipaddress.IPv4Address(address) in net]
         if len(matching_dorms) != 1:
-            print(f"Error: IP address {address} is in {\"no\" if len(matching_dorms) == 0 else \"multiple\"} dorms: {matching_dorms}. Not added.")
+            print(f'Error: IP address {address} is in {"no" if len(matching_dorms) == 0 else "multiple"} dorms: {matching_dorms}. Not added.')
             continue
 
         dorm_dict = dorms_port_to_ip_map[matching_dorms[0]]
@@ -148,19 +150,18 @@ def setup_redirects(config, proto: str = "ipv4", nft_set_name: str, binddn: str,
 
 
     new_ips = ','.join(member_list)
-    nft_set_proto = 'ipv4_addr' if proto == 'ipv4' else 'ipv6_addr'
     cmd = '''
     flush chain ip nat portrelay_dnat
     flush chain ip nat portrelay_snat
     '''
 
-    for dorm, dorm_dict in dorms_port_to_ip_map:
+    for dorm, dorm_dict in dorms_port_to_ip_map.items():
 
-        port_to_ip_22_str = " . 22 , ".join([f"{port} : {str(ip)}" for port,ip in dorm_dict]) + " . 22 "
-        port_to_ip_70_str = " . 70 , ".join([f"{port} : {str(ip)}" for port,ip in dorm_dict]) + " . 70 "
+        port_to_ip_22_str = " . 22 , ".join([f"{port} : {str(ip)}" for port,ip in dorm_dict.items()]) + " . 22 "
+        port_to_ip_70_str = " . 70 , ".join([f"{port} : {str(ip)}" for port,ip in dorm_dict.items()]) + " . 70 "
 
-        mark22 = f"0x{ip2int(config[dorm]["tor22_ip"]):02x}"
-        mark70 = f"0x{ip2int(config[dorm]["tor70_ip"]):02x}"
+        mark22 = f"0x{ip2int(config[dorm]['tor22_ip']):02x}"
+        mark70 = f"0x{ip2int(config[dorm]['tor70_ip']):02x}"
 
         cmd_part = f'''
         add map ip nat {dorm}_port_to_ip_22 {{type inet_service: ipv4_addr . inet_service ; }}
@@ -172,17 +173,20 @@ def setup_redirects(config, proto: str = "ipv4", nft_set_name: str, binddn: str,
 
         add rule ip nat portrelay_dnat ip daddr {config[dorm]["tor22_ip"]} mark set {mark22} dnat ip addr . port to tcp dport map @{dorm}_port_to_ip_22
         add rule ip nat portrelay_dnat ip daddr {config[dorm]["tor70_ip"]} mark set {mark70} dnat ip addr . port to tcp dport map @{dorm}_port_to_ip_70
-        add rule ip nat portrelay_dnat ip daddr {config[dorm]["tor22_ip"]} protocol udp ct status assured mark set {mark22} dnat ip addr . port to udp dport map @{dorm}_port_to_ip_22
-        add rule ip nat portrelay_dnat ip daddr {config[dorm]["tor70_ip"]} protocol udp ct status assured mark set {mark70} dnat ip addr . port to udp dport map @{dorm}_port_to_ip_70
-        add rule ip nat portrelay_dnat ip daddr {config[dorm]["tor22_ip"]} protocol udp mark set {mark22} dnat ip addr . port to udp dport map @{dorm}_port_to_ip_22 limit rate 10/second
-        add rule ip nat portrelay_dnat ip daddr {config[dorm]["tor70_ip"]} protocol udp mark set {mark70} dnat ip addr . port to udp dport map @{dorm}_port_to_ip_70 limit rate 10/second
+        add rule ip nat portrelay_dnat ip daddr {config[dorm]["tor22_ip"]} ip protocol udp ct status assured mark set {mark22} dnat ip addr . port to udp dport map @{dorm}_port_to_ip_22
+        add rule ip nat portrelay_dnat ip daddr {config[dorm]["tor70_ip"]} ip protocol udp ct status assured mark set {mark70} dnat ip addr . port to udp dport map @{dorm}_port_to_ip_70
+        add rule ip nat portrelay_dnat ip daddr {config[dorm]["tor22_ip"]} ip protocol udp mark set {mark22} limit rate 10/second dnat ip addr . port to udp dport map @{dorm}_port_to_ip_22 
+        add rule ip nat portrelay_dnat ip daddr {config[dorm]["tor70_ip"]} ip protocol udp mark set {mark70} limit rate 10/second dnat ip addr . port to udp dport map @{dorm}_port_to_ip_70 
 
         add rule ip nat portrelay_snat meta mark {mark22} snat to {config[dorm]["tor22_ip"]}
         add rule ip nat portrelay_snat meta mark {mark70} snat to {config[dorm]["tor70_ip"]}
         '''
         cmd = cmd + cmd_part
 
-
+    print(cmd)
+    f = open("script_outfile.nft", "w")
+    f.write(cmd)
+    f.close()
     _exec_nft_cmds_atomic(cmd, verbose)
 
 
@@ -228,15 +232,13 @@ def cleanup_rules(config, verbose: bool) -> int:
 
 
 def main(verbose: bool, action: str):
-    config = read_config(config_path)
+    config = read_config(CONFIG_PATH)
     err = 0
     if action in ["start", "update"]:
         err = setup_redirects(
             config,
-            proto='ipv4',
-            nft_set_name=config['memberfilter']['nft_set_name_v4'],
-            binddn=config['memberfilter']['ldap_binddn'],
-            bindpw=config['memberfilter']['ldap_bindpw'],
+            binddn=config['general']['ldap_binddn'],
+            bindpw=config['general']['ldap_bindpw'],
             verbose=verbose)
     elif action == "stop":
         err = cleanup_rules(config, verbose=verbose)
@@ -245,9 +247,9 @@ def main(verbose: bool, action: str):
 
 
 def create_parser():
-    parser = argparse.argumentparser('ssn memberfilter updater')
+    parser = argparse.ArgumentParser('ssn memberfilter updater')
     parser.add_argument('-v', '--verbose', action='store_true', dest='verbose')
-    parser.add_argument('action', choices=["start", "update", "stop"], default="update", required=False action="store", dest="action")
+    parser.add_argument('action', choices=["start", "update", "stop"], default="update", action="store")
 
     return parser
 

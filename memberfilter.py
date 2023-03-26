@@ -183,10 +183,6 @@ def setup_redirects(config, binddn: str, bindpw: str, verbose: bool = False) -> 
         '''
         cmd = cmd + cmd_part
 
-    print(cmd)
-    f = open("script_outfile.nft", "w")
-    f.write(cmd)
-    f.close()
     _exec_nft_cmds_atomic(cmd, verbose)
 
 

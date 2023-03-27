@@ -4,9 +4,8 @@ After=ssn-janus.service
 Requisite=ssn-janus.service
 
 [Timer]
-OnCalendar=*:30:30
-OnCalendar=*:00:00
-OnBootSec=0
+OnCalendar=*:00/10:30
+OnBootSec=10
 
 [Install]
 WantedBy=timers.target

@@ -1,3 +1,9 @@
+ssn-janus (1.0.8) bullseye; urgency=medium
+
+  * Most likely found the bug
+
+ -- Nico Greger <nico.greger@stusta.de>  Mon, 28 Mar 2023 00:50:00 +0200
+
 ssn-janus (1.0.7) bullseye; urgency=medium
 
   * Fight against debian packaging again again

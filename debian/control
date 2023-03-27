@@ -1,0 +1,19 @@
+Source: ssn-janus
+Section: python
+Priority: optional
+Maintainer: Nico Greger, <nico.greger@stusta.de>
+Build-Depends: debhelper (>= 11),
+               python3 (>= 3.7.3)
+Standards-Version: 3.9.2
+X-Python-Version: >= 3.7
+
+
+Package: ssn-janus
+Architecture: all
+Section: python
+Depends: python3-pyldap, ${misc:Depends}, ${python3:Depends}
+Description: short description
+ SSN Janus Port Forwarder
+ Pulls member information (ips) and inserts them into a nftables
+ ip map that sets up port forwarding on tcp and udp ports 22 and
+ 70 into the dorm rooms

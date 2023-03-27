@@ -1,3 +1,9 @@
+ssn-janus (1.0.6) bullseye; urgency=medium
+
+  * Fight against debian packaging again
+
+ -- Nico Greger <nico.greger@stusta.de>  Mon, 28 Mar 2023 00:10:00 +0200
+
 ssn-janus (1.0.5) bullseye; urgency=medium
 
   * Fight against debian packaging

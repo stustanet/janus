@@ -253,7 +253,7 @@ def main(verbose: bool, action: str, export: Optional[str]):
 def create_parser():
     parser = argparse.ArgumentParser('ssn memberfilter updater')
     parser.add_argument('-v', '--verbose', action='store_true', dest='verbose', help="Verbose output")
-    parser.add_argument('-x', '--export', action='store', nargs=1, dest='export', default=None,
+    parser.add_argument('-x', '--export', action='store', nargs=1, dest='export', default=[None],
                         help="takes the path where to export the firewall rules to")
     parser.add_argument('action', choices=["start", "update", "stop"], default="update", action="store",
                         help="What does the program do?")

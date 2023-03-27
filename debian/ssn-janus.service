@@ -1,5 +1,5 @@
 [Unit]
-Description=Update and set up Janus Port Relay
+Description=Start up Janus Port Relay
 After=network-online.target nftables.service
 Requires=nftables.service
 PartOf=nftables.service
@@ -7,7 +7,7 @@ RequiresMountsFor=/var/local/cache/ldap
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/ssn-janus.py update
+ExecStart=/usr/bin/ssn-janus.py start
 ExecStop=/usr/bin/ssn-janus.py stop
 RemainAfterExit=True
 

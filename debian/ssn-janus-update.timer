@@ -1,0 +1,12 @@
+[Unit]
+Description=Run ssn-janus update to update portmapper service of Janus
+After=ssn-janus.service
+Requisite=ssn-janus.service
+
+[Timer]
+OnCalendar=*:30:30
+OnCalendar=*:00:00
+OnBootSec=0
+
+[Install]
+WantedBy=timers.target

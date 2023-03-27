@@ -1,0 +1,14 @@
+[Unit]
+Description=Update up Janus Port Relay
+After=network-online.target nftables.service ssn-janus.service
+Requires=nftables.service
+Requisite=ssn-janus.service
+PartOf=ssn-janus.service
+RequiresMountsFor=/var/local/cache/ldap
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/ssn-janus.py update
+
+[Install]
+WantedBy=multi-user.target

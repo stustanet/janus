@@ -7,8 +7,8 @@ RequiresMountsFor=/var/local/cache/ldap
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/ssn_janus.py update
-ExecStop=/usr/bin/ssn_janus.py stop
+ExecStart=/usr/bin/ssn-janus.py update
+ExecStop=/usr/bin/ssn-janus.py stop
 RemainAfterExit=True
 
 [Install]

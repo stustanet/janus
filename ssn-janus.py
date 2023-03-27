@@ -14,7 +14,7 @@ import ldap
 from ldap.ldapobject import LDAPObject
 
 
-CONFIG_PATH = Path('/etc/ssn/memberfilter.ini')
+CONFIG_PATH = Path('/etc/ssn/ssn-janus.ini')
 
 def ip2int(addr: str) -> int:
     return struct.unpack("!I", socket.inet_aton(addr))[0]

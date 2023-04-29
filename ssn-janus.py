@@ -144,13 +144,39 @@ def setup_redirects(config, binddn: str, bindpw: str, verbose: bool = False, exp
         if len(matching_dorms) != 1:
             print(f'Error: IP address {address} is in {"no" if len(matching_dorms) == 0 else "multiple"} dorms: {matching_dorms}. Not added.')
             continue
+        
+        dorm_name = matching_dorms[0]
 
-        dorm_dict = dorms_port_to_ip_map[matching_dorms[0]]
+        dorm_dict = dorms_port_to_ip_map[dorm_name]
+        
+        if bool(config.sections(dorm_name)["new_system"]):
+            # computing port number based on the IP address (3 ports per room):
+            # Consider IP address in binary form: 32 digits.
+            # First 15 digits is the constant prefix -- discard them
+            # Last 4 digits are 16 IP addresses of one room -- omit for now.
+            # We end up with 13 digits unique for every room
+            # To get room number starting from 0 we subtract 2048 because
+            # IP addresses on the rooms start at X.X.128.X, and not X.X.0.X
+            # so room 0's 13 digits are 0.10000000.0000
 
-        octets = str(address).split(".")
-        port = 10000  +  256 * int(octets[2])  +  int(octets[3])
-        dorm_dict[port] = str(address)
+            octets = [int(a) for a in str(address).split(".")]
+            address_no = octets[3]&0x0F
 
+            part1 = (octets[1]&1)<<12
+            part2 = octets[2]<<4
+            part3 = (octets[3]&0xF0)>>4
+            room_no = ((part1|part2)|part3) - 2048
+            
+            port = 9999 + 3*room_no + address_no
+            dorm_dict[port] = str(address)
+
+
+        else:
+            # Old system from before 29.04.2023
+            octets = str(address).split(".")
+            port = 10000  +  256 * int(octets[2])  +  int(octets[3])
+            dorm_dict[port] = str(address)
+            
 
 
 

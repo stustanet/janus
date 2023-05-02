@@ -172,7 +172,7 @@ def setup_redirects(config, binddn: str, bindpw: str, verbose: bool = False, exp
 
 
         else:
-            # Old system from before 29.04.2023
+            # Old system from before 29.04.2023 (IP-Armageddon)
             octets = str(address).split(".")
             port = 10000  +  256 * int(octets[2])  +  int(octets[3])
             dorm_dict[port] = str(address)

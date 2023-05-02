@@ -1,3 +1,9 @@
+ssn-janus (1.1.1) bullseye; urgency=medium
+
+  * Bugfix
+
+ -- Nico Greger <nico.greger@stusta.de>  Tue, 02 May 2023 18:40:00 +0200
+
 ssn-janus (1.1.0) bullseye; urgency=medium
 
   * Added new system to calculate port forwardings to statically assigned

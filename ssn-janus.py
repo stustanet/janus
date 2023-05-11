@@ -129,8 +129,9 @@ def setup_redirects(config, binddn: str, bindpw: str, verbose: bool = False, exp
             continue
 
 
-        for addr in net:
-            member_list.append(str(addr))
+        #for addr in net:
+        #    member_list.append(str(addr))
+        member_list.append(ipaddress.ip_network(net))
 
     member_list = set(member_list)
     dorms_list = list(filter((lambda x: x != "general"), config.sections()))
@@ -138,14 +139,17 @@ def setup_redirects(config, binddn: str, bindpw: str, verbose: bool = False, exp
     dorms_ipnet = {dorm: ipaddress.IPv4Network(config[dorm]["subnet"]) for dorm in dorms_list}
 
     dorms_port_to_ip_map = {dorm: dict() for dorm in dorms_list}
+    
 
-    for address in member_list:
-        matching_dorms = [dorm for dorm,net in dorms_ipnet.items() if ipaddress.IPv4Address(address) in net]
+    #for address in member_list:
+    for net in member_list:
+        matching_dorms = [dorm for dorm,dnet in dorms_ipnet.items() if net.subnet_of(dnet)]
         if len(matching_dorms) != 1:
-            print(f'Error: IP address {address} is in {"no" if len(matching_dorms) == 0 else "multiple"} dorms: {matching_dorms}. Not added.')
+            print(f'Error: IP address {net} is in {"no" if len(matching_dorms) == 0 else "multiple"} dorms: {matching_dorms}. Not added.')
             continue
         
         dorm_name = matching_dorms[0]
+
 
         dorm_dict = dorms_port_to_ip_map[dorm_name]
         
@@ -159,28 +163,31 @@ def setup_redirects(config, binddn: str, bindpw: str, verbose: bool = False, exp
             # IP addresses on the rooms start at X.X.128.X, and not X.X.0.X
             # so room 0's 13 digits are 0.10000000.0000
 
-            octets = [int(a) for a in str(address).split(".")]
-            address_no = octets[3]&0x0F
+            octets = [int(a) for a in str(net.network_address).split(".")]
+            #address_no = octets[3]&0x0F
+
+
 
             part1 = (octets[1]&1)<<12
             part2 = octets[2]<<4
             part3 = (octets[3]&0xF0)>>4
             room_no = ((part1|part2)|part3) - 2048
             
-            port = 9999 + 3*room_no + address_no
-            dorm_dict[port] = str(address)
+            port_base = 10000 + 3*(room_no)
+            dorm_dict[port_base] = str(net.network_address+2)
+            dorm_dict[port_base+1] = str(net.network_address+3)
+            dorm_dict[port_base+2] = str(net.network_address+4)
 
 
         else:
             # Old system from before 29.04.2023 (IP-Armageddon)
-            octets = str(address).split(".")
-            port = 10000  +  256 * int(octets[2])  +  int(octets[3])
-            dorm_dict[port] = str(address)
-            
+            for a in address:
+                octets = str(a).split(".")
+                port = 10000  +  256 * int(octets[2])  +  int(octets[3])
+                dorm_dict[port] = str(a)
 
 
 
-    new_ips = ','.join(member_list)
     cmd = '''
     flush chain ip nat portrelay_dnat
     flush chain ip nat portrelay_snat
@@ -231,6 +238,7 @@ def setup_redirects(config, binddn: str, bindpw: str, verbose: bool = False, exp
 
     ldap_conn.unbind_s()
     return error
+
 
 def cleanup_rules(config, verbose: bool, export: Optional[str]) -> int:
     err = 0

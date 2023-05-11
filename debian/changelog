@@ -1,3 +1,9 @@
+ssn-janus (1.1.3) bullseye; urgency=medium
+
+  * Fixed calculation off by one error on new port calculation
+
+ -- Nico Greger <nico.greger@stusta.de>  Thu, 11 May 2023 17:30:00 +0200
+
 ssn-janus (1.1.2) bullseye; urgency=medium
 
   * Bugfix

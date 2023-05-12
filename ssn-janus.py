@@ -153,7 +153,7 @@ def setup_redirects(config, binddn: str, bindpw: str, verbose: bool = False, exp
 
         dorm_dict = dorms_port_to_ip_map[dorm_name]
         
-        if bool(config[dorm_name]["new_system"]):
+        if config[dorm_name]["new_system"].lower() == "true":
             # computing port number based on the IP address (3 ports per room):
             # Consider IP address in binary form: 32 digits.
             # First 15 digits is the constant prefix -- discard them
@@ -181,10 +181,11 @@ def setup_redirects(config, binddn: str, bindpw: str, verbose: bool = False, exp
 
         else:
             # Old system from before 29.04.2023 (IP-Armageddon)
-            for a in address:
-                octets = str(a).split(".")
+
+            for address in net:
+                octets = str(address).split(".")
                 port = 10000  +  256 * int(octets[2])  +  int(octets[3])
-                dorm_dict[port] = str(a)
+                dorm_dict[port] = str(address)
 
 
 
